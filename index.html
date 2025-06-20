@@ -1,1 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Jogo da Memória: Química e Impacto</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 20px;
+  }
+  #pontuacao, #tentativas, #status {
+    margin-top: 10px;
+    font-size: 16px;
+  }
+  #tabuleiro {
+    display: grid;
+    grid-template-columns: repeat(2, 150px);
+    gap: 15px;
+    justify-content: center;
+    margin-top: 20px;
+  }
+  .carta {
+    width: 150px;
+    height: 100px;
+    background-color: #3498db;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    color: white;
+    border-radius: 8px;
+    user-select: none;
+    transition: background-color 0.3s;
+  }
+  .carta.revelada {
+    background-color: #2ecc71;
+  }
+</style>
+</head>
+<body>
 
+<h1>Jogo da Memória: Química e Impacto</h1>
+<div id="pontuacao">Pontuação: 0</div>
+<div id="tentativas">Tentativas: 0</div>
+<div id="status"></div>
+<div id="tabuleiro"></div>
+
+<script>
+const paresCorretos = [
+  {conceito: "Biocombustíveis", impacto: "Inovação"},
+  {conceito: "Menos Poluição", impacto: "Melhora do clima"},
+  {conceito: "Sustentável", impacto: "Responsabilidade com meio ambiente"},
+  {conceito: "Tecnologia", impacto: "Novos conhecimentos"},
+];
+
+const cartasOriginal = paresCorretos.flatMap(p => [
+  {tipo: 'conceito', valor: p.conceito},
+  {tipo: 'impacto', valor: p.impacto},
+]);
+
+let cartas = [];
+let primeiraCarta = null;
+let bloqueado = false;
+let pontos = 0;
+let tentativas = 0;
+const maxTentativas = 10;
+
+function shuffle(array) {
+  for (let i = array.length -1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+function atualizarPontuacao() {
+  document.getElementById('pontuacao').innerText = 'Pontuação: ' + pontos;
+}
+
+function atualizarTentativas() {
+  document.getElementById('tentativas').innerText = 'Tentativas: ' + tentativas;
+}
+
+function atualizarStatus(mensagem) {
+  document.getElementById('status').innerText = mensagem;
+}
+
+function prepararCartas() {
+  cartas = [];
+  for (const p of paresCorretos) {
+    cartas.push({tipo: 'conceito', valor: p.conceito});
+    cartas.push({tipo: 'impacto', valor: p.impacto});
+  }
+  shuffle(cartas);
+}
+
+function criarTabuleiro() {
+  const container = document.getElementById('tabuleiro');
+  container.innerHTML = '';
+
+  for (let i=0; i < cartas.length; i++) {
+    const div = document.createElement('div');
+    div.className = 'carta';
+    div.dataset.index = i;
+    div.dataset.revelada = 'false';
+    div.innerText = '';
+    div.onclick = () => virarCarta(i);
+    container.appendChild(div);
+  }
+}
+
+function validarPar(carta1, carta2) {
+  // verifica se são uma combinação conceito x impacto corretos
+  return paresCorretos.some(p =>
+    (p.conceito === carta1.valor && p.impacto === carta2.valor) ||
+    (p.impacto === carta1.valor && p.conceito === carta2.valor)
+  );
+}
+
+function virarCarta(index) {
+  if (bloqueado) return;
+  if (tentativas >= maxTentativas) return; // jogo acabado
+
+  const divCarta = document.querySelector(`[data-index='${index}']`);
+  if (divCarta.dataset.revelada === 'true') return;
+
+  const carta = cartas[index];
+
+  divCarta.classList.add('revelada');
+  divCarta.innerText = carta.valor;
+  divCarta.dataset.revelada = 'true';
+
+  if (!primeiraCarta) {
+    primeiraCarta = {index, carta};
+  } else {
+    // segunda carta
+    bloqueado = true;
+    tentativas++;
+    atualizarTentativas();
+
+    const segundaCarta = {index, carta};
+    const divPrimeira = document.querySelector(`[data-index='${primeiraCarta.index}']`);
+    const divSegunda = document.querySelector(`[data-index='${segundaCarta.index}']`);
+
+    setTimeout(() => {
+      if (validarPar(primeiraCarta.carta, segundaCarta.carta)) {
+        // par correto: ficar viradas
+        pontos++;
+        atualizarPontuacao();
+        // deixar as cartas viradas indefinidamente
+        // verificar se ganhou
+        const todasViradas = Array.from(document.querySelectorAll('.carta')).every(c => c.dataset.revelada === 'true');
+        if (todasViradas) {
+          atualizarStatus(`Parabéns! Você ganhou com ${pontos} pontos em ${tentativas} tentativas!`);
+        } else {
+          atualizarStatus('Par correto!');
+        }
+      } else {
+        // vira de volta
+        divPrimeira.classList.remove('revelada');
+        divPrimeira.innerText = '';
+        divPrimeira.dataset.revelada = 'false';
+
+        divSegunda.classList.remove('revelada');
+        divSegunda.innerText = '';
+        divSegunda.dataset.revelada = 'false';
+
+        atualizarStatus('Tente novamente.');
+      }
+
+      // verifica se tentou o máximo
+      if (tentativas >= maxTentativas && pontos < paresCorretos.length) {
+        // perdedor
+        atualizarStatus(`Fim de jogo! Você perdeu. Pontuação: ${pontos}.`);
+        // bloquear novas jogadas
+        bloquearJogo();
+      }
+
+      primeiraCarta = null;
+      bloqueado = false;
+    }, 1000);
+  }
+}
+
+function bloquearJogo() {
+  // desabilita clicks nas cartas
+  document.querySelectorAll('.carta').forEach(c => {
+    c.onclick = null;
+  });
+}
+
+// iniciar jogo
+prepararCartas();
+criarTabuleiro();
+atualizarPontuacao();
+atualizarTentativas();
+</script>
+
+</body>
+</html>
